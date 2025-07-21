@@ -11,8 +11,11 @@ min() {
 
 # module load anaconda3_gpu/23.9.0
 # source activate yodas
+cd /ocean/projects/cis210027p/chuang14/espnet/tools
+. ./activate_python.sh
+cd /ocean/projects/cis210027p/chuang14/yodas_scripts
 
-nj=4000
+nj=1000
 _logdir=logdir/ctc_seg
 key_file=data_reseg/json_files.txt
 

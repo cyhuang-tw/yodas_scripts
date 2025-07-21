@@ -207,7 +207,7 @@ def align_audio(text, wav_path, aligner):
     return output, start_err / len(res.utt_ids), end_err / len(res.utt_ids)
 
 
-def process_json(file, out_dir, aligner, additional_text_cleaners=[]):
+def process_json(file, out_dir, aligner):
     """Segment all audios in the input json file and 
     write the new jsonl file to the output directory.
     """
@@ -219,6 +219,15 @@ def process_json(file, out_dir, aligner, additional_text_cleaners=[]):
     for json_obj in tqdm(json_obj_lst, disable=False, mininterval=30, maxinterval=300):
         audio_id = json_obj['audio_id']
         wav_path = str(audio_dir / f'{audio_id}.flac')
+        if "error" in json_obj:
+            tqdm.write(f"**** Skipping {audio_id} because error flag was found. ****")
+            continue
+        lang = re.search(r"<(.*?)>", json_obj["lang"]).group(1)
+        aligner.lang_sym = lang
+        additional_text_cleaners = []
+        if lang == "zho":
+            additional_text_cleaners.append(chinese_converter.to_simplified)
+            tqdm.write("**** Additional text cleaner: chinese_converter.to_simplified")
 
         kaldi_text = ""
         raw_texts = []
@@ -289,6 +298,7 @@ if __name__ == "__main__":
         for file in tqdm(fin):
             file = file.strip()
 
+            '''
             lang = Path(file).parent.parent.name[:2]
             assert TO_ISO_LANGUAGE_CODE[lang] in owsm_langs
             aligner.lang_sym = f"<{TO_ISO_LANGUAGE_CODE[lang]}>"
@@ -299,8 +309,9 @@ if __name__ == "__main__":
             if lang == "zh":
                 additional_text_cleaners.append(chinese_converter.to_simplified)
                 tqdm.write("**** Additional text cleaner: chinese_converter.to_simplified")
+            '''
 
             out_dir = Path(file).parent.parent / 'text_reseg'
             out_dir.mkdir(exist_ok=True)
 
-            process_json(file, out_dir, aligner, additional_text_cleaners)
+            process_json(file, out_dir, aligner)
