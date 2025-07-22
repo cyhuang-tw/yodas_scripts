@@ -31,4 +31,4 @@ done
 utils/split_scp.pl "${key_file}" ${split_scps}
 
 ./slurm.pl --max-jobs-run 100 --gpu 1 --time 2:00:00 JOB=1:"${_nj}" "${_logdir}"/stats.JOB.log \
-    python ctc_seg.py --file_list ${_logdir}/data.JOB
+    python ctc_seg.py --file_list ${_logdir}/data.JOB --root_dir /ocean/projects/cis210027p/takamich/archive_org/audio

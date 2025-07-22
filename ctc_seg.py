@@ -206,24 +206,39 @@ def align_audio(text, wav_path, aligner):
 
     return output, start_err / len(res.utt_ids), end_err / len(res.utt_ids)
 
+def find_full_filename(base_name: str, directory: str = '.'):
+    """
+    Search `directory` for a file whose name (without extension) matches `base_name`.
+    Returns the first match (including its extension), or None if not found.
+    """
+    dir_path = Path(directory)
+    # this will match files like "audio.wav", "audio.mp3", etc.
+    match = next(dir_path.glob(f'{base_name}.*'), None)
+    return match.name if match else None
 
-def process_json(file, out_dir, aligner):
+def process_json(file, out_dir, aligner, root_dir):
     """Segment all audios in the input json file and 
     write the new jsonl file to the output directory.
     """
     fout = open(out_dir / (Path(file).stem + ".jsonl"), 'w')
 
-    audio_dir = Path(file).parent.parent / 'audio'
+    # audio_dir = Path(file).parent.parent / 'audio'
+    audio_dir = Path(root_dir)
+    json_id = Path(file).stem
+    curr_dir = audio_dir / json_id
 
     json_obj_lst = json.loads(open(file, 'r').read())
     for json_obj in tqdm(json_obj_lst, disable=False, mininterval=30, maxinterval=300):
         audio_id = json_obj['audio_id']
-        wav_path = str(audio_dir / f'{audio_id}.flac')
+        # wav_path = str(audio_dir / json_id / f'{audio_id}.flac')
+        wav_name = find_full_filename(audio_id, curr_dir)
+        assert wav_name is not None
+        wav_path = curr_dir / wav_name
         if "error" in json_obj:
             tqdm.write(f"**** Skipping {audio_id} because error flag was found. ****")
             continue
         lang = re.search(r"<(.*?)>", json_obj["lang"]).group(1)
-        aligner.lang_sym = lang
+        aligner.lang_sym = json_obj["lang"]
         additional_text_cleaners = []
         if lang == "zho":
             additional_text_cleaners.append(chinese_converter.to_simplified)
@@ -251,7 +266,7 @@ def process_json(file, out_dir, aligner):
 
                 sample = {
                     'audio_id': audio_id,
-                    'wav_path': wav_path,
+                    'wav_path': str(wav_path),
                     'ave_start_err': ave_start_err,
                     'ave_end_err': ave_end_err,
                     'utts': [
@@ -271,6 +286,7 @@ def process_json(file, out_dir, aligner):
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file_list", type=str, required=True)
+    parser.add_argument("-r", "--root_dir", type=str, required=True)
     return parser
 
 
@@ -314,4 +330,4 @@ if __name__ == "__main__":
             out_dir = Path(file).parent.parent / 'text_reseg'
             out_dir.mkdir(exist_ok=True)
 
-            process_json(file, out_dir, aligner)
+            process_json(file, out_dir, aligner, args.root_dir)
