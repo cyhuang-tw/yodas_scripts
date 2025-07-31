@@ -216,6 +216,7 @@ def chunkize(file: Path, tmp_dir: Path) -> List[Path]:
 
 def parse_text(kaldi_text: str) -> List[str]:
     texts = kaldi_text.split("\n")
+    texts = [t for t in texts if len(t) > 0]
     chunks = [[]]
     count = 0
     for t in texts:
@@ -231,7 +232,8 @@ def parse_text(kaldi_text: str) -> List[str]:
         chunks[-1].append(t)
     ret = []
     for ch in chunks:
-        ret.append("\n".join(ch))
+        new_text = "\n".join(ch) + "\n"
+        ret.append(new_text)
     return ret
 
 def align_audio_by_chunk(text, wav_path, aligner):
