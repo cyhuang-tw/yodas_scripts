@@ -1,11 +1,13 @@
 import re
 import argparse
 import json
+import tempfile
 import torch
 import librosa
 import emoji
 import chinese_converter
 from pathlib import Path
+from typing import List
 from tqdm import tqdm
 # from espnet2.bin.s2t_ctc_align import CTCSegmentation
 from s2t_ctc_align import CTCSegmentation
@@ -206,6 +208,64 @@ def align_audio(text, wav_path, aligner):
 
     return output, start_err / len(res.utt_ids), end_err / len(res.utt_ids)
 
+def chunkize(file: Path, tmp_dir: Path) -> List[Path]:
+    cmd = f"sox {file} {tmp_dir}/{file.stem}%5n.wav trim 0 1800 : newfile : restart"
+    os.system(cmd)
+    return sorted(list(tmp_dir.iterdir()))
+
+def parse_text(kaldi_text: str) -> List[str]:
+    texts = kaldi_text.split("\n")
+    chunks = [[]]
+    count = 0
+    for t in texts:
+        idf = t.split(" ")[0]
+        # st, ed are in ms, not sec.
+        _, idx, st, ed = idf.strip().rsplit("-", 3)
+        st = int(st)
+        ed = int(ed)
+        if st >= (count + 1) * 30 * 60 * 1000:
+            count += 1
+            assert len(chunks) == count
+            chunks.append([])
+        chunks[-1].append(t)
+    ret = []
+    for ch in chunks:
+        ret.append("\n".join(ch))
+    return ret
+
+def align_audio_by_chunk(text, wav_path, aligner):
+    tmp_dir = Path(tempfile.mkdtemp())
+    chunk_files = chunkize(wav_path, tmp_dir)
+    res_list = []
+    text_chunks = parse_text(text)
+    for sub_idx, sub_file in enumerate(chunk_files):
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            speech = librosa.load(sub_file, sr=16000)[0]
+            sub_res = aligner(speech, text_chunks[sub_idx])
+            res_list.append(sub_res)
+    utt_ids = [uid for sub in res_list for uid in sub.utt_ids]
+    bias = 30 * 60 # 30 minutes in seconds
+    segments = [(seg[0] + sub_idx * bias, seg[1] + sub_idx * bias, *seg[2:])
+                for sub_idx, sub in enumerate(res_list)
+                for seg in sub.segments]
+    
+    output = []
+    start_err = 0.
+    end_err = 0.
+    for utt_id, (start_time, end_time, confidence) in zip(utt_ids, segments):
+        fields = utt_id.split('-')
+        # I think it should be / 1000 because we are converting ms to sec.
+        ori_start_time = float(fields[-2]) / 1000
+        ori_end_time = float(fields[-1]) / 1000
+
+        start_err += abs(start_time - ori_start_time)
+        end_err += abs(end_time - ori_end_time)
+
+        output.append((utt_id, start_time, end_time, confidence))
+
+    return output, start_err / len(utt_ids), end_err / len(utt_ids)
+
+
 def find_full_filename(base_name: str, directory: str = '.'):
     """
     Search `directory` for a file whose name (without extension) matches `base_name`.
@@ -262,7 +322,9 @@ def process_json(file, out_dir, aligner, root_dir):
 
         if len(raw_texts) > 0:
             try:
-                segments, ave_start_err, ave_end_err = align_audio(kaldi_text, wav_path, aligner)
+                # segments, ave_start_err, ave_end_err = align_audio(kaldi_text, wav_path, aligner)
+                segments, ave_start_err, ave_end_err = align_audio_by_chunk(kaldi_text, wav_path, aligner)
+                
 
                 sample = {
                     'audio_id': audio_id,
