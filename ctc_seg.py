@@ -396,3 +396,6 @@ if __name__ == "__main__":
             out_dir.mkdir(exist_ok=True)
 
             process_json(file, out_dir, aligner, args.root_dir)
+            done_path = out_dir / (Path(file).stem + ".done")
+            done_path.touch()
+
