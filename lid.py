@@ -20,6 +20,7 @@ class SpeechDataset(torch.utils.data.Dataset):
         self.data = []
         with open(data_file, 'r') as fin:
             for line in fin:
+                # Input file is a JSONL file.
                 sample = json.loads(line.strip())
                 self.data.append(
                     {
@@ -29,7 +30,8 @@ class SpeechDataset(torch.utils.data.Dataset):
                         "end_time": sample['end_time'],
                         "lang": sample['lang'],
                         "text": sample['text'],
-                        "prev_text": sample['prev_text'],
+                        # We don't have this information.
+                        # "prev_text": sample['prev_text'],
                         "confidences": sample['confidences'],
                     }
                 )
@@ -40,7 +42,7 @@ class SpeechDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         sample = self.data[idx]
-        fs=16000    # the model is trained on 16k
+        fs = 16000    # the model is trained on 16k
 
         if sample['wav_path'] not in self.audios:
             self.audios[sample['wav_path']] = librosa.load(sample['wav_path'], sr=fs)[0]
@@ -54,7 +56,7 @@ class SpeechDataset(torch.utils.data.Dataset):
             "wav": torch.tensor(wav, dtype=torch.float32),
             "lang": sample['lang'],
             "text": sample['text'],
-            "prev_text": sample['prev_text'],
+            # "prev_text": sample['prev_text'],
             "confidences": sample['confidences'],
         }
         return res
@@ -66,7 +68,7 @@ def collate_fn(batch):
     utt_ids = [x['utt_id'] for x in batch]
     langs = [x['lang'] for x in batch]
     texts = [x['text'] for x in batch]
-    prev_texts = [x['prev_text'] for x in batch]
+    # prev_texts = [x['prev_text'] for x in batch]
 
     wavs = [x['wav'] for x in batch]
     wav_lens = torch.tensor([len(x) for x in wavs])
@@ -75,7 +77,7 @@ def collate_fn(batch):
 
     scores = [x['confidences'] for x in batch]
 
-    return utt_ids, wavs, wav_lens, langs, texts, prev_texts, scores
+    return utt_ids, wavs, wav_lens, langs, texts, scores
 
 
 def lid_fasttext(model, text, max_len=None):
@@ -117,28 +119,28 @@ def process(in_file, out_file, fasttext_ori):
         )
 
         try:
-            for utt_ids, wavs, wav_lens, langs, texts, prev_texts, scores in tqdm(dataloader, miniters=1, maxinterval=600, mininterval=10):
+            for utt_ids, wavs, wav_lens, langs, texts, scores in tqdm(dataloader, miniters=1, maxinterval=600, mininterval=10):
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                     speech_preds = lid_speechbrain_batched(sb_model, wavs, wav_lens)
                     text_preds = [lid_fasttext(fasttext_ori, text) for text in texts]
-                    prev_text_preds = []
-                    for prev_text in prev_texts:
-                        if prev_text == "<na>":
-                            prev_text_preds.append("<na>")
-                        else:
-                            prev_text_preds.append(lid_fasttext(fasttext_ori, prev_text))
+                    # prev_text_preds = []
+                    # for prev_text in prev_texts:
+                    #     if prev_text == "<na>":
+                    #         prev_text_preds.append("<na>")
+                    #     else:
+                    #         prev_text_preds.append(lid_fasttext(fasttext_ori, prev_text))
 
-                for utt_id, lang, text, prev_text, speech_pred, text_pred, prev_text_pred, score in zip(
-                    utt_ids, langs, texts, prev_texts, speech_preds, text_preds, prev_text_preds, scores
+                for utt_id, lang, text, speech_pred, text_pred, score in zip(
+                    utt_ids, langs, texts, speech_preds, text_preds, scores
                 ):
                     res = {
                         "utt_id": utt_id,
                         "lang": lang[1:-1],
                         "speech_pred": speech_pred,
                         "text_pred": text_pred,
-                        "prev_text_pred": prev_text_pred,
+                        # "prev_text_pred": prev_text_pred,
                         "text": text,
-                        "prev_text": prev_text,
+                        # "prev_text": prev_text,
                         "confidences": score,
                     }
                     fout.write(json.dumps(res, ensure_ascii=False) + "\n")
