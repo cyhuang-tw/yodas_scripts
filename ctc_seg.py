@@ -225,7 +225,7 @@ def parse_text(kaldi_text: str) -> List[str]:
         _, idx, st, ed = idf.strip().rsplit("-", 3)
         st = int(st)
         ed = int(ed)
-        if st >= (count + 1) * 30 * 60 * 1000:
+        while st >= (count + 1) * 30 * 60 * 1000:
             count += 1
             assert len(chunks) == count
             chunks.append([])
@@ -242,6 +242,9 @@ def align_audio_by_chunk(text, wav_path, aligner):
     res_list = []
     text_chunks = parse_text(text)
     for sub_idx, sub_file in enumerate(chunk_files):
+        # we need to check if there's available text for this chunk
+        if sub_idx >= len(text_chunks) or len(text_chunks[sub_idx]) == 0:
+            break
         with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
             speech = librosa.load(sub_file, sr=16000)[0]
             sub_res = aligner(speech, text_chunks[sub_idx])

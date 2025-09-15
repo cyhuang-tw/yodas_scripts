@@ -189,6 +189,7 @@ option num_threads=1 --cpus-per-task 1  --ntasks-per-node=1 # Do not add anythin
 default gpu=0
 option gpu=0 -p shared
 option gpu=* -p gpu --gres=gpu:$0 --time 4:0:0  # this has to be figured out
+option gpu=v100-32 -p GPU-shared --gpus=v100-32:1 --time 48:00:00
 EOF
 
 # note: the --max-jobs-run option is supported as a special case
