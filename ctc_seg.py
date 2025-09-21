@@ -303,7 +303,11 @@ def process_json(file, out_dir, aligner, root_dir):
         if "error" in json_obj:
             tqdm.write(f"**** Skipping {audio_id} because error flag was found. ****")
             continue
-        lang = re.search(r"<(.*?)>", json_obj["lang"]).group(1)
+        try:
+            lang = re.search(r"<(.*?)>", json_obj["lang"]).group(1)
+        except:
+            tqdm.write(f"**** Skipping {audio_id} because no language tag was found. ****")
+            continue
         aligner.lang_sym = json_obj["lang"]
         additional_text_cleaners = []
         if lang == "zho":
