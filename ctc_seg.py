@@ -345,7 +345,8 @@ def process_json(file, out_dir, aligner, root_dir):
                         (utt_id, start_time, end_time, confidence, cleaned_text, raw_text) for (
                                 utt_id, start_time, end_time, confidence
                             ), cleaned_text, raw_text in zip(segments, cleaned_texts, raw_texts)
-                    ]
+                    ],
+                    'lang': lang,
                 }
                 fout.write(json.dumps(sample, ensure_ascii=False) + '\n')
 
